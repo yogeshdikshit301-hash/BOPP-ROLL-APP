@@ -342,15 +342,16 @@ function todayStr(){
 
 async function loadDB(){
   try{
-    const res = await window.storage.get(DB_KEY, true);
-    if(res && res.value){ db = JSON.parse(res.value); }
+    const raw = localStorage.getItem(DB_KEY);
+    if(raw){ db = JSON.parse(raw); }
   }catch(e){ db = { rolls: {} }; }
+  if(sheetWebhookUrl){ await syncFromSheet(); }
   renderStockList();
 }
 
 async function saveDB(){
   try{
-    await window.storage.set(DB_KEY, JSON.stringify(db), true);
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
     return true;
   }catch(e){
     showToast('Save mein error aaya, dobara try karein', 'error');
@@ -365,13 +366,16 @@ function showToast(msg, type){
   setTimeout(()=>{ t.className = ''; }, 2400);
 }
 
-function switchTab(tab){
+async function switchTab(tab){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('view-'+tab).classList.add('active');
   document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
   stopScanner();
-  if(tab==='stock') renderStockList();
+  if(tab==='stock'){
+    renderStockList();
+    if(sheetWebhookUrl){ await syncFromSheet(); renderStockList(); }
+  }
 }
 
 /* ---- QR SCANNING ---- */
@@ -480,7 +484,8 @@ async function saveNewRoll(){
 }
 
 /* ---- USE ROLL FLOW ---- */
-function handleUseRollScanned(rollNo){
+async function handleUseRollScanned(rollNo){
+  if(sheetWebhookUrl){ await syncFromSheet(); }
   const r = db.rolls[rollNo];
   document.getElementById('use-notfound').style.display = 'none';
   document.getElementById('use-form').style.display = 'none';
@@ -646,14 +651,17 @@ if('serviceWorker' in navigator){
 const SHEET_KEY = 'bopp_sheet_webhook_url';
 let sheetWebhookUrl = '';
 
-const APPS_SCRIPT_CODE = `function doPost(e) {
+const APPS_SCRIPT_CODE = `function getSheet_() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Rolls");
-  if (!sheet) {
-    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Rolls");
-  }
+  if (!sheet) sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Rolls");
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(["Roll No","Micron","Entry Date","Status","Used Date","Used For","Updated At"]);
   }
+  return sheet;
+}
+
+function doPost(e) {
+  var sheet = getSheet_();
   var data = JSON.parse(e.postData.contents);
   var values = sheet.getDataRange().getValues();
   var rowIndex = -1;
@@ -667,13 +675,31 @@ const APPS_SCRIPT_CODE = `function doPost(e) {
     sheet.appendRow(rowData);
   }
   return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  var sheet = getSheet_();
+  var values = sheet.getDataRange().getValues();
+  var rows = [];
+  for (var i = 1; i < values.length; i++) {
+    if (!values[i][0]) continue;
+    rows.push({
+      rollNo: values[i][0],
+      micron: values[i][1],
+      entryDate: values[i][2],
+      status: values[i][3],
+      usedDate: values[i][4],
+      usedFor: values[i][5]
+    });
+  }
+  return ContentService.createTextOutput(JSON.stringify(rows)).setMimeType(ContentService.MimeType.JSON);
 }`;
 
 async function loadSheetUrl(){
   try{
-    const res = await window.storage.get(SHEET_KEY, true);
-    if(res && res.value){
-      sheetWebhookUrl = res.value;
+    const val = localStorage.getItem(SHEET_KEY);
+    if(val){
+      sheetWebhookUrl = val;
       document.getElementById('sheet-url-input').value = sheetWebhookUrl;
       updateSheetStatus();
     }
@@ -683,7 +709,7 @@ async function loadSheetUrl(){
 function updateSheetStatus(){
   const el = document.getElementById('sheet-status');
   if(sheetWebhookUrl){
-    el.innerHTML = `<div class="warn-banner" style="border-color:var(--stock);background:var(--stock-dim);color:var(--stock);">✓ Sheet connected hai. Ab har entry automatically sync hogi.</div>`;
+    el.innerHTML = `<div class="warn-banner" style="border-color:var(--stock);background:var(--stock-dim);color:var(--stock);">✓ Sheet connected hai. Ab har entry automatically sync hogi, aur saari phones ka data yahan combine hoga.</div>`;
   } else {
     el.innerHTML = '';
   }
@@ -697,12 +723,36 @@ async function saveSheetUrl(){
   }
   sheetWebhookUrl = val;
   try{
-    await window.storage.set(SHEET_KEY, val, true);
+    localStorage.setItem(SHEET_KEY, val);
     showToast('Sheet URL save ho gaya ✓', 'success');
     updateSheetStatus();
+    if(val){ await syncFromSheet(); renderStockList(); }
   }catch(e){
     showToast('Save nahi ho paaya, dobara try karein', 'error');
   }
+}
+
+async function syncFromSheet(){
+  if(!sheetWebhookUrl) return;
+  try{
+    const res = await fetch(sheetWebhookUrl, { method: 'GET' });
+    const remoteRows = await res.json();
+    if(Array.isArray(remoteRows)){
+      remoteRows.forEach(r=>{
+        if(r.rollNo){
+          db.rolls[r.rollNo] = {
+            rollNo: r.rollNo,
+            micron: r.micron,
+            entryDate: r.entryDate,
+            status: r.status,
+            usedFor: r.usedFor || null,
+            usedDate: r.usedDate || null
+          };
+        }
+      });
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+    }
+  }catch(e){ /* offline ya sheet unreachable - local data se hi kaam chalega */ }
 }
 
 function syncToSheet(rollData){
@@ -734,4 +784,3 @@ loadSheetUrl();
 </script>
 </body>
 </html>
- 
