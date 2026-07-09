@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Roll Stock">
+<meta name="theme-color" content="#14171A">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>BOPP Roll Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap');
+
+:root{
+  --bg:#14171A;
+  --panel:#1F2328;
+  --panel-alt:#262B31;
+  --border:#33393F;
+  --accent:#F5A623;
+  --accent-dim:#4d3a15;
+  --stock:#34C77B;
+  --stock-dim:#123423;
+  --used:#4FA3F7;
+  --used-dim:#132a3f;
+  --danger:#EF5350;
+  --text:#F2F3F4;
+  --muted:#9AA1A9;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;height:100%;overflow-x:hidden;}
+#app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);position:relative;}
+
+/* Header */
+.topbar{padding:18px 18px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:linear-gradient(180deg,#181B1F,#14171A);}
+.topbar .mark{width:38px;height:38px;flex-shrink:0;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;}
+.topbar .mark svg{width:22px;height:22px;}
+.topbar h1{font-family:'Oswald',sans-serif;font-size:19px;font-weight:700;letter-spacing:0.5px;margin:0;text-transform:uppercase;}
+.topbar p{margin:1px 0 0;font-size:11px;color:var(--muted);letter-spacing:0.4px;}
+
+/* Content */
+.view{display:none;flex:1;padding:16px 16px 90px;animation:fadein .18s ease;}
+.view.active{display:block;}
+@keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+.section-label{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:1.5px;color:var(--accent);text-transform:uppercase;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* Scan card */
+.scan-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;}
+.scan-btn{width:100%;padding:16px;border-radius:8px;border:none;background:var(--accent);color:#14171A;font-family:'Oswald',sans-serif;font-weight:700;font-size:15px;letter-spacing:0.8px;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:transform .08s ease, filter .15s;}
+.scan-btn:active{transform:scale(0.97);filter:brightness(0.92);}
+.scan-btn svg{width:20px;height:20px;}
+.scan-btn.secondary{background:transparent;border:1.5px solid var(--border);color:var(--text);margin-top:10px;}
+
+.reader-wrap{display:none;margin-top:14px;border-radius:10px;overflow:hidden;border:1.5px solid var(--accent);position:relative;}
+.qr-box{width:100%;}
+.reader-close{position:absolute;top:8px;right:8px;z-index:5;background:rgba(20,23,26,0.85);border:1px solid var(--border);color:var(--text);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;}
+.scan-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:8px;}
+
+.manual-toggle{text-align:center;margin-top:10px;font-size:12.5px;color:var(--muted);text-decoration:underline;cursor:pointer;}
+.manual-box{display:none;margin-top:10px;}
+.manual-box.active{display:block;}
+
+/* Form fields */
+label.field-label{display:block;font-size:11px;letter-spacing:0.8px;color:var(--muted);text-transform:uppercase;margin:14px 0 6px;font-family:'Oswald',sans-serif;}
+input[type=text], textarea{width:100%;background:var(--panel-alt);border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;outline:none;}
+input[type=text]:focus, textarea:focus{border-color:var(--accent);}
+textarea{font-family:'Inter',sans-serif;font-weight:400;resize:vertical;min-height:70px;}
+
+.micron-row{display:flex;gap:8px;}
+.micron-opt{flex:1;padding:14px 4px;border-radius:8px;border:1.5px solid var(--border);background:var(--panel-alt);text-align:center;cursor:pointer;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:var(--muted);transition:.12s;}
+.micron-opt.selected{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+
+.readonly-box{background:var(--panel-alt);border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:15px;color:var(--text);}
+
+.save-btn{width:100%;margin-top:20px;padding:15px;border-radius:8px;border:none;background:var(--stock);color:#0B1F14;font-family:'Oswald',sans-serif;font-weight:700;font-size:15px;letter-spacing:0.6px;text-transform:uppercase;cursor:pointer;}
+.save-btn:active{transform:scale(0.98);}
+.save-btn:disabled{opacity:0.4;}
+
+/* Tag preview card - signature element */
+.roll-tag{position:relative;background:var(--panel);border:1.5px dashed var(--border);border-radius:10px;padding:16px 16px 16px 22px;margin-top:16px;}
+.roll-tag::before{content:'';position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:var(--bg);border:1.5px dashed var(--border);}
+.roll-tag .rt-no{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:20px;letter-spacing:0.5px;}
+.roll-tag .rt-meta{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;}
+.roll-tag .rt-meta span{font-size:11.5px;color:var(--muted);}
+.roll-tag .rt-meta b{color:var(--text);font-family:'JetBrains Mono',monospace;}
+.status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10.5px;font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;}
+.status-pill.instock{background:var(--stock-dim);color:var(--stock);}
+.status-pill.used{background:var(--used-dim);color:var(--used);}
+
+.warn-banner{background:#3a2a12;border:1px solid #6b4a15;color:#F5C563;font-size:12.5px;padding:10px 12px;border-radius:8px;margin-top:12px;line-height:1.5;}
+.err-banner{background:#3a1414;border:1px solid #6b2020;color:#F5A0A0;font-size:12.5px;padding:10px 12px;border-radius:8px;margin-top:12px;line-height:1.5;}
+
+/* Stock list */
+.summary-row{display:flex;gap:8px;margin-bottom:14px;}
+.sum-card{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 8px;text-align:center;}
+.sum-card .n{font-family:'Oswald',sans-serif;font-size:20px;font-weight:700;}
+.sum-card .l{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;}
+.sum-card.stock .n{color:var(--stock);}
+.sum-card.used .n{color:var(--used);}
+
+.filter-row{display:flex;gap:6px;margin-bottom:12px;}
+.filter-chip{padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel-alt);font-size:12px;color:var(--muted);cursor:pointer;}
+.filter-chip.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
+
+.search-box{margin-bottom:12px;}
+.search-box input{font-family:'Inter',sans-serif;font-weight:500;}
+
+.roll-item{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px;}
+.roll-item .ri-top{display:flex;justify-content:space-between;align-items:center;}
+.roll-item .ri-no{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;}
+.roll-item .ri-meta{font-size:11.5px;color:var(--muted);margin-top:5px;}
+.roll-item .ri-used{font-size:11.5px;color:var(--used);margin-top:4px;}
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+.empty-state svg{width:40px;height:40px;opacity:0.4;margin-bottom:10px;}
+.empty-state p{font-size:13px;margin:0;}
+
+.export-btn{width:100%;padding:14px;border-radius:8px;border:1.5px solid var(--accent);background:transparent;color:var(--accent);font-family:'Oswald',sans-serif;font-weight:700;font-size:13.5px;letter-spacing:0.6px;text-transform:uppercase;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px;}
+.export-btn svg{width:16px;height:16px;}
+
+/* Tab bar */
+.tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;display:flex;background:var(--panel);border-top:1px solid var(--border);padding:8px 6px calc(8px + env(safe-area-inset-bottom));}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;cursor:pointer;color:var(--muted);}
+.tab svg{width:21px;height:21px;}
+.tab span{font-size:10px;font-family:'Oswald',sans-serif;letter-spacing:0.4px;text-transform:uppercase;}
+.tab.active{color:var(--accent);}
+
+/* Install banner */
+.install-banner{display:none;align-items:center;gap:10px;background:linear-gradient(135deg,var(--accent-dim),var(--panel));border:1px solid var(--accent);border-radius:10px;padding:12px 14px;margin:0 16px 0;}
+.install-banner.show{display:flex;}
+.install-banner .ib-icon{width:34px;height:34px;flex-shrink:0;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;}
+.install-banner .ib-icon svg{width:19px;height:19px;}
+.install-banner .ib-text{flex:1;}
+.install-banner .ib-text b{display:block;font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:0.3px;}
+.install-banner .ib-text span{font-size:11px;color:var(--muted);}
+.install-banner button{background:var(--accent);color:#14171A;border:none;padding:8px 14px;border-radius:6px;font-family:'Oswald',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.4px;text-transform:uppercase;cursor:pointer;flex-shrink:0;}
+.install-banner .ib-close{background:transparent;color:var(--muted);border:none;font-size:16px;padding:4px 6px;cursor:pointer;}
+
+/* Toast */
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel-alt);border:1px solid var(--border);color:var(--text);padding:12px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:50;max-width:90%;text-align:center;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#toast.success{border-color:var(--stock);}
+#toast.error{border-color:var(--danger);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#14171A" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+    </div>
+    <div>
+      <h1>BOPP Roll Stock</h1>
+      <p>Factory Inventory Tracker</p>
+    </div>
+  </div>
+
+  <div class="install-banner" id="install-banner" style="margin-top:14px;">
+    <div class="ib-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#14171A" stroke-width="2.3"><path d="M12 3v13m0 0l-4-4m4 4l4-4M5 21h14"/></svg></div>
+    <div class="ib-text"><b>App Install Karein</b><span id="install-text">Home screen pe icon aur camera access ke liye</span></div>
+    <button id="install-btn" onclick="doInstall()">Install</button>
+    <button class="ib-close" onclick="dismissInstall()">✕</button>
+  </div>
+
+  <!-- VIEW: NEW ROLL -->
+  <div class="view active" id="view-new">
+    <div class="section-label">Naya Roll Entry</div>
+    <div class="scan-card">
+      <button class="scan-btn" onclick="startScan('new')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#14171A" stroke-width="2.3"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M17 20h3"/></svg>
+        QR Scan Karein
+      </button>
+      <div id="reader-wrap-new" class="reader-wrap">
+        <div id="reader-new"></div>
+      </div>
+      <div class="scan-hint">Roll par laga QR camera ke saamne rakhein</div>
+      <div class="manual-toggle" onclick="toggleManual('new')">Ya Roll No. manually likhein</div>
+      <div class="manual-box" id="manual-new">
+        <input type="text" id="manual-input-new" placeholder="Roll No. type karein" autocomplete="off">
+        <button class="scan-btn secondary" style="margin-top:8px;" onclick="submitManual('new')">Confirm</button>
+      </div>
+    </div>
+
+    <div id="new-form" style="display:none;">
+      <div class="roll-tag">
+        <div class="rt-no" id="new-roll-no">—</div>
+        <div class="rt-meta"><span>Entry Date: <b id="new-entry-date">—</b></span></div>
+      </div>
+      <div id="new-duplicate-warn"></div>
+
+      <label class="field-label">Micron Select Karein</label>
+      <div class="micron-row">
+        <div class="micron-opt" data-m="35" onclick="selectMicron(35)">35µ</div>
+        <div class="micron-opt" data-m="45" onclick="selectMicron(45)">45µ</div>
+        <div class="micron-opt" data-m="50" onclick="selectMicron(50)">50µ</div>
+      </div>
+
+      <button class="save-btn" id="new-save-btn" disabled onclick="saveNewRoll()">Stock Mein Save Karein</button>
+    </div>
+  </div>
+
+  <!-- VIEW: USE ROLL -->
+  <div class="view" id="view-use">
+    <div class="section-label">Roll Use Karein</div>
+    <div class="scan-card">
+      <button class="scan-btn" onclick="startScan('use')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#14171A" stroke-width="2.3"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M17 20h3"/></svg>
+        QR Scan Karein
+      </button>
+      <div id="reader-wrap-use" class="reader-wrap">
+        <div id="reader-use"></div>
+      </div>
+      <div class="scan-hint">Use se pehle roll ka QR scan karein</div>
+      <div class="manual-toggle" onclick="toggleManual('use')">Ya Roll No. manually likhein</div>
+      <div class="manual-box" id="manual-use">
+        <input type="text" id="manual-input-use" placeholder="Roll No. type karein" autocomplete="off">
+        <button class="scan-btn secondary" style="margin-top:8px;" onclick="submitManual('use')">Confirm</button>
+      </div>
+    </div>
+
+    <div id="use-notfound" class="err-banner" style="display:none;">
+      Yeh Roll No. stock mein nahi mila. Pehle "Naya Roll" tab mein add karein.
+    </div>
+
+    <div id="use-form" style="display:none;">
+      <div class="roll-tag">
+        <div class="rt-no" id="use-roll-no">—</div>
+        <div class="rt-meta">
+          <span>Micron: <b id="use-roll-micron">—</b></span>
+          <span>Entry: <b id="use-roll-entry">—</b></span>
+        </div>
+      </div>
+      <div id="use-already-warn"></div>
+
+      <label class="field-label">Use Date</label>
+      <div class="readonly-box" id="use-date-today">—</div>
+
+      <label class="field-label">Used For</label>
+      <textarea id="used-for-input" placeholder="Kis job / order ke liye use ho raha hai likhein..."></textarea>
+
+      <button class="save-btn" id="use-save-btn" onclick="saveUsage()">Use Confirm Karein</button>
+    </div>
+  </div>
+
+  <!-- VIEW: STOCK LIST -->
+  <div class="view" id="view-stock">
+    <div class="section-label">Stock List</div>
+
+    <div class="summary-row">
+      <div class="sum-card"><div class="n" id="sum-total">0</div><div class="l">Total</div></div>
+      <div class="sum-card stock"><div class="n" id="sum-stock">0</div><div class="l">In Stock</div></div>
+      <div class="sum-card used"><div class="n" id="sum-used">0</div><div class="l">Used</div></div>
+    </div>
+
+    <button class="export-btn" onclick="exportCSV()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+      Excel / CSV Export Karein
+    </button>
+
+    <div class="search-box">
+      <input type="text" id="search-input" placeholder="Roll No. search karein..." oninput="renderStockList()">
+    </div>
+    <div class="filter-row">
+      <div class="filter-chip active" data-f="all" onclick="setFilter('all')">Sabhi</div>
+      <div class="filter-chip" data-f="in_stock" onclick="setFilter('in_stock')">In Stock</div>
+      <div class="filter-chip" data-f="used" onclick="setFilter('used')">Used</div>
+    </div>
+
+    <div id="stock-list"></div>
+  </div>
+
+  <!-- VIEW: SETTINGS -->
+  <div class="view" id="view-settings">
+    <div class="section-label">Google Sheet Sync</div>
+    <div class="scan-card">
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:12px;">
+        Yahan apni Google Sheet ka "Web App URL" paste karein — uske baad har roll entry/use automatically us Sheet mein bhi save ho jaayegi. Setup ka tareeka niche diya hai.
+      </div>
+      <label class="field-label">Web App URL</label>
+      <input type="text" id="sheet-url-input" placeholder="https://script.google.com/macros/s/xxxxx/exec" autocomplete="off">
+      <button class="save-btn" style="margin-top:14px;" onclick="saveSheetUrl()">Save Karein</button>
+      <div id="sheet-status" style="margin-top:10px;"></div>
+      <button class="scan-btn secondary" style="margin-top:10px;" onclick="testSheetSync()">Test Sync Bhejein</button>
+    </div>
+
+    <div class="section-label">Setup Ka Tareeka (1 baar karna hai)</div>
+    <div class="scan-card" style="font-size:12.5px;color:var(--muted);line-height:1.9;">
+      1. <b style="color:var(--text)">sheets.google.com</b> par jaakar ek nayi Sheet banao<br>
+      2. Menu se <b style="color:var(--text)">Extensions → Apps Script</b> kholo<br>
+      3. Purana code delete karke neeche diya code paste karo<br>
+      4. Save karo, phir <b style="color:var(--text)">Deploy → New deployment</b><br>
+      5. Type: <b style="color:var(--text)">Web app</b> | Execute as: <b style="color:var(--text)">Me</b> | Access: <b style="color:var(--text)">Anyone</b><br>
+      6. Deploy dabao, permission allow karo<br>
+      7. Jo URL milegi (jo <b style="color:var(--text)">/exec</b> par khatam hoti hai) — use upar paste karke Save karo
+      <button class="scan-btn secondary" style="margin-top:12px;" onclick="copyScript()">Apps Script Code Copy Karein</button>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <div class="tab active" data-tab="new" onclick="switchTab('new')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      <span>Naya Roll</span>
+    </div>
+    <div class="tab" data-tab="use" onclick="switchTab('use')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      <span>Roll Use</span>
+    </div>
+    <div class="tab" data-tab="stock" onclick="switchTab('stock')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      <span>Stock</span>
+    </div>
+    <div class="tab" data-tab="settings" onclick="switchTab('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 005 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span>Settings</span>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+</div>
+
+<script>
+const DB_KEY = 'bopp_rolls_db';
+let db = { rolls: {} };
+let currentFilter = 'all';
+let activeScanner = null;
+let pendingRollNo_new = null;
+let pendingRollNo_use = null;
+let selectedMicron = null;
+
+function todayStr(){
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yyyy = d.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+}
+
+async function loadDB(){
+  try{
+    const res = await window.storage.get(DB_KEY, true);
+    if(res && res.value){ db = JSON.parse(res.value); }
+  }catch(e){ db = { rolls: {} }; }
+  renderStockList();
+}
+
+async function saveDB(){
+  try{
+    await window.storage.set(DB_KEY, JSON.stringify(db), true);
+    return true;
+  }catch(e){
+    showToast('Save mein error aaya, dobara try karein', 'error');
+    return false;
+  }
+}
+
+function showToast(msg, type){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show' + (type ? ' '+type : '');
+  setTimeout(()=>{ t.className = ''; }, 2400);
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('view-'+tab).classList.add('active');
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+  stopScanner();
+  if(tab==='stock') renderStockList();
+}
+
+/* ---- QR SCANNING ---- */
+function stopScanner(){
+  if(activeScanner){
+    const s = activeScanner;
+    activeScanner = null;
+    s.stop().catch(()=>{});
+  }
+  document.getElementById('reader-wrap-new').style.display='none';
+  document.getElementById('reader-wrap-use').style.display='none';
+}
+
+function startScan(mode){
+  stopScanner();
+  const wrap = document.getElementById('reader-wrap-'+mode);
+  wrap.style.display = 'block';
+  wrap.innerHTML = `<div class="reader-close" onclick="stopScanner()">✕</div><div id="reader-${mode}" class="qr-box"></div>`;
+  try{
+    activeScanner = new Html5Qrcode('reader-'+mode);
+    activeScanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: 230 },
+      (decodedText)=>{
+        onScanResult(mode, decodedText);
+      },
+      ()=>{}
+    ).catch(()=>{
+      showToast('Camera access nahi mila. Naye tab mein kholein ya manually likhein.', 'error');
+      toggleManual(mode, true);
+      stopScanner();
+    });
+  }catch(e){
+    showToast('Camera available nahi hai. Manually likhein.', 'error');
+    toggleManual(mode, true);
+  }
+}
+
+function onScanResult(mode, text){
+  stopScanner();
+  const rollNo = text.trim();
+  showToast('Scan ho gaya: ' + rollNo, 'success');
+  if(mode==='new') handleNewRollScanned(rollNo);
+  else handleUseRollScanned(rollNo);
+}
+
+function toggleManual(mode, forceOpen){
+  const box = document.getElementById('manual-'+mode);
+  if(forceOpen){ box.classList.add('active'); return; }
+  box.classList.toggle('active');
+}
+
+function submitManual(mode){
+  const val = document.getElementById('manual-input-'+mode).value.trim();
+  if(!val){ showToast('Roll No. likhein pehle', 'error'); return; }
+  if(mode==='new') handleNewRollScanned(val);
+  else handleUseRollScanned(val);
+}
+
+/* ---- NEW ROLL FLOW ---- */
+function handleNewRollScanned(rollNo){
+  pendingRollNo_new = rollNo;
+  selectedMicron = null;
+  document.querySelectorAll('.micron-opt').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('new-save-btn').disabled = true;
+  document.getElementById('new-roll-no').textContent = rollNo;
+  document.getElementById('new-entry-date').textContent = todayStr();
+  document.getElementById('new-form').style.display = 'block';
+
+  const warnEl = document.getElementById('new-duplicate-warn');
+  if(db.rolls[rollNo]){
+    const r = db.rolls[rollNo];
+    warnEl.innerHTML = `<div class="warn-banner">Is Roll No. ki entry pehle se hai (${r.micron}µ, ${r.entryDate}, status: ${r.status==='used'?'Used':'In Stock'}). Save karne par purani detail overwrite ho jaayegi.</div>`;
+  } else {
+    warnEl.innerHTML = '';
+  }
+}
+
+function selectMicron(m){
+  selectedMicron = m;
+  document.querySelectorAll('.micron-opt').forEach(el=>{
+    el.classList.toggle('selected', Number(el.dataset.m)===m);
+  });
+  document.getElementById('new-save-btn').disabled = false;
+}
+
+async function saveNewRoll(){
+  if(!pendingRollNo_new || !selectedMicron) return;
+  db.rolls[pendingRollNo_new] = {
+    rollNo: pendingRollNo_new,
+    micron: selectedMicron,
+    entryDate: todayStr(),
+    status: 'in_stock',
+    usedFor: null,
+    usedDate: null
+  };
+  const ok = await saveDB();
+  if(ok){
+    syncToSheet(db.rolls[pendingRollNo_new]);
+    showToast('Roll stock mein save ho gaya ✓', 'success');
+    document.getElementById('new-form').style.display = 'none';
+    document.getElementById('manual-input-new').value = '';
+    pendingRollNo_new = null;
+    renderStockList();
+  }
+}
+
+/* ---- USE ROLL FLOW ---- */
+function handleUseRollScanned(rollNo){
+  const r = db.rolls[rollNo];
+  document.getElementById('use-notfound').style.display = 'none';
+  document.getElementById('use-form').style.display = 'none';
+  if(!r){
+    document.getElementById('use-notfound').style.display = 'block';
+    return;
+  }
+  pendingRollNo_use = rollNo;
+  document.getElementById('use-roll-no').textContent = r.rollNo;
+  document.getElementById('use-roll-micron').textContent = r.micron + 'µ';
+  document.getElementById('use-roll-entry').textContent = r.entryDate;
+  document.getElementById('use-date-today').textContent = todayStr();
+  document.getElementById('used-for-input').value = r.usedFor || '';
+
+  const warnEl = document.getElementById('use-already-warn');
+  if(r.status === 'used'){
+    warnEl.innerHTML = `<div class="warn-banner">Yeh roll pehle hi <b>${r.usedDate}</b> ko use ho chuka hai ("${r.usedFor||'-'}"). Confirm karne par detail update ho jaayegi.</div>`;
+  } else {
+    warnEl.innerHTML = '';
+  }
+  document.getElementById('use-form').style.display = 'block';
+}
+
+async function saveUsage(){
+  if(!pendingRollNo_use) return;
+  const usedFor = document.getElementById('used-for-input').value.trim();
+  if(!usedFor){ showToast('"Used For" likhna zaroori hai', 'error'); return; }
+  const r = db.rolls[pendingRollNo_use];
+  r.status = 'used';
+  r.usedDate = todayStr();
+  r.usedFor = usedFor;
+  const ok = await saveDB();
+  if(ok){
+    syncToSheet(r);
+    showToast('Roll use confirm ho gaya ✓', 'success');
+    document.getElementById('use-form').style.display = 'none';
+    document.getElementById('manual-input-use').value = '';
+    pendingRollNo_use = null;
+    renderStockList();
+  }
+}
+
+/* ---- STOCK LIST ---- */
+function setFilter(f){
+  currentFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.toggle('active', c.dataset.f===f));
+  renderStockList();
+}
+
+function renderStockList(){
+  const all = Object.values(db.rolls).sort((a,b)=> (b.entryDate+b.rollNo).localeCompare(a.entryDate+a.rollNo));
+  const total = all.length;
+  const inStock = all.filter(r=>r.status==='in_stock').length;
+  const used = all.filter(r=>r.status==='used').length;
+  document.getElementById('sum-total').textContent = total;
+  document.getElementById('sum-stock').textContent = inStock;
+  document.getElementById('sum-used').textContent = used;
+
+  const search = (document.getElementById('search-input')?.value || '').toLowerCase();
+  let filtered = all;
+  if(currentFilter !== 'all') filtered = filtered.filter(r=>r.status===currentFilter);
+  if(search) filtered = filtered.filter(r=>r.rollNo.toLowerCase().includes(search));
+
+  const listEl = document.getElementById('stock-list');
+  if(filtered.length === 0){
+    listEl.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+      <p>Koi roll nahi mila</p>
+    </div>`;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(r=>`
+    <div class="roll-item">
+      <div class="ri-top">
+        <div class="ri-no">${r.rollNo}</div>
+        <div class="status-pill ${r.status==='used'?'used':'instock'}">${r.status==='used'?'Used':'In Stock'}</div>
+      </div>
+      <div class="ri-meta">${r.micron}µ · Entry: ${r.entryDate}</div>
+      ${r.status==='used' ? `<div class="ri-used">Used ${r.usedDate} — ${escapeHtml(r.usedFor||'')}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* ---- CSV EXPORT ---- */
+function exportCSV(){
+  const all = Object.values(db.rolls).sort((a,b)=> (b.entryDate+b.rollNo).localeCompare(a.entryDate+a.rollNo));
+  if(all.length === 0){ showToast('Export karne ke liye koi data nahi hai', 'error'); return; }
+  const headers = ['Roll No','Micron','Entry Date','Status','Used Date','Used For'];
+  const rows = all.map(r=>[
+    r.rollNo, r.micron, r.entryDate, (r.status==='used'?'Used':'In Stock'), r.usedDate||'', r.usedFor||''
+  ]);
+  let csv = headers.join(',') + '\\n';
+  rows.forEach(row=>{
+    csv += row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',') + '\\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bopp-roll-stock-${todayStr()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV download ho gayi', 'success');
+}
+
+/* ---- PWA INSTALL ---- */
+let deferredPrompt = null;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredPrompt = e;
+  if(!isStandalone && !localStorage_getDismissed()){
+    document.getElementById('install-banner').classList.add('show');
+  }
+});
+
+function localStorage_getDismissed(){
+  // artifacts can't use localStorage; using an in-memory flag for this session only
+  return window.__installDismissed === true;
+}
+
+function dismissInstall(){
+  document.getElementById('install-banner').classList.remove('show');
+  window.__installDismissed = true;
+}
+
+async function doInstall(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    document.getElementById('install-banner').classList.remove('show');
+  } else if(isIOS){
+    showToast('Safari mein: Share icon (⬆️) dabao → "Add to Home Screen" chuno', 'success');
+  } else {
+    showToast('Browser ke menu (⋮) se "Add to Home screen" / "Install app" chunein', 'success');
+  }
+}
+
+// Show manual instructions banner on iOS since beforeinstallprompt doesn't fire there
+if(isIOS && !isStandalone){
+  document.getElementById('install-text').textContent = 'Share icon (⬆️) → Add to Home Screen';
+  document.getElementById('install-banner').classList.add('show');
+}
+
+// Register the service worker (real file) - required for proper PWA/Android app packaging.
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+
+/* ---- GOOGLE SHEET SYNC ---- */
+const SHEET_KEY = 'bopp_sheet_webhook_url';
+let sheetWebhookUrl = '';
+
+const APPS_SCRIPT_CODE = `function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Rolls");
+  if (!sheet) {
+    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Rolls");
+  }
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["Roll No","Micron","Entry Date","Status","Used Date","Used For","Updated At"]);
+  }
+  var data = JSON.parse(e.postData.contents);
+  var values = sheet.getDataRange().getValues();
+  var rowIndex = -1;
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(data.rollNo)) { rowIndex = i + 1; break; }
+  }
+  var rowData = [data.rollNo, data.micron, data.entryDate, data.status, data.usedDate || "", data.usedFor || "", new Date()];
+  if (rowIndex > -1) {
+    sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+  } else {
+    sheet.appendRow(rowData);
+  }
+  return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+}`;
+
+async function loadSheetUrl(){
+  try{
+    const res = await window.storage.get(SHEET_KEY, true);
+    if(res && res.value){
+      sheetWebhookUrl = res.value;
+      document.getElementById('sheet-url-input').value = sheetWebhookUrl;
+      updateSheetStatus();
+    }
+  }catch(e){}
+}
+
+function updateSheetStatus(){
+  const el = document.getElementById('sheet-status');
+  if(sheetWebhookUrl){
+    el.innerHTML = `<div class="warn-banner" style="border-color:var(--stock);background:var(--stock-dim);color:var(--stock);">✓ Sheet connected hai. Ab har entry automatically sync hogi.</div>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+async function saveSheetUrl(){
+  const val = document.getElementById('sheet-url-input').value.trim();
+  if(val && !val.includes('script.google.com')){
+    showToast('Sahi Apps Script Web App URL daalein', 'error');
+    return;
+  }
+  sheetWebhookUrl = val;
+  try{
+    await window.storage.set(SHEET_KEY, val, true);
+    showToast('Sheet URL save ho gaya ✓', 'success');
+    updateSheetStatus();
+  }catch(e){
+    showToast('Save nahi ho paaya, dobara try karein', 'error');
+  }
+}
+
+function syncToSheet(rollData){
+  if(!sheetWebhookUrl) return;
+  fetch(sheetWebhookUrl, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(rollData)
+  }).catch(()=>{});
+}
+
+function testSheetSync(){
+  if(!sheetWebhookUrl){ showToast('Pehle URL save karein', 'error'); return; }
+  syncToSheet({ rollNo: 'TEST-'+Date.now().toString().slice(-5), micron: 50, entryDate: todayStr(), status: 'in_stock', usedDate:'', usedFor:'' });
+  showToast('Test data bheja gaya, Sheet check karein', 'success');
+}
+
+function copyScript(){
+  navigator.clipboard.writeText(APPS_SCRIPT_CODE).then(()=>{
+    showToast('Code copy ho gaya, Apps Script mein paste karein', 'success');
+  }).catch(()=>{
+    showToast('Copy nahi hua, manually select karein', 'error');
+  });
+}
+
+loadDB();
+loadSheetUrl();
+</script>
+</body>
+</html>
